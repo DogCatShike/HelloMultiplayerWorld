@@ -33,8 +33,47 @@ public class HelloWorldManager : MonoBehaviour
         hostButton.clicked += OnHostButtonClick;
         clientButton.clicked += OnClientButtonClick;
         serverButton.clicked += OnServerButtonClick;
+        moveButton.clicked += SubmitNewPosition;
     }
 
+    void Update()
+    {
+        UpdateUI();
+    }
+
+    void OnDisable()
+    {
+        hostButton.clicked -= OnHostButtonClick;
+        clientButton.clicked -= OnClientButtonClick;
+        serverButton.clicked -= OnServerButtonClick;
+        moveButton.clicked -= SubmitNewPosition;
+    }
+
+    void UpdateUI()
+    {
+        if (NetworkManager.Singleton == null)
+        {
+            SetStartButtons(false);
+            SetMoveButton(false);
+            SetStatusText("NetworkManager not found");
+            return;
+        }
+
+        if (!NetworkManager.Singleton.IsClient && !NetworkManager.Singleton.IsServer)
+        {
+            SetStartButtons(true);
+            SetMoveButton(false);
+            SetStatusText("Not Connected");
+        }
+        else
+        {
+            SetStartButtons(false);
+            SetMoveButton(true);
+            UpdateStatusLabels();
+        }
+    }
+
+    // NetworkManager.Singleton: NetworkManager的单例对象
     void OnHostButtonClick() => NetworkManager.Singleton.StartHost();
     void OnClientButtonClick() => NetworkManager.Singleton.StartClient();
     void OnServerButtonClick() => NetworkManager.Singleton.StartServer();
@@ -59,5 +98,67 @@ public class HelloWorldManager : MonoBehaviour
         label.style.color = Color.black;
         label.style.fontSize = 18;
         return label;
+    }
+
+    void SetStartButtons(bool state)
+    {
+        hostButton.style.display = state ? DisplayStyle.Flex : DisplayStyle.None;
+        clientButton.style.display = state ? DisplayStyle.Flex : DisplayStyle.None;
+        serverButton.style.display = state ? DisplayStyle.Flex : DisplayStyle.None;
+    }
+
+    void SetMoveButton(bool state)
+    {
+        moveButton.style.display = state ? DisplayStyle.Flex : DisplayStyle.None;
+        if (state)
+        {
+            moveButton.text = NetworkManager.Singleton.IsServer ? "Move" : "Request Position Change";
+        }
+    }
+
+    void SetStatusText(string text)
+    {
+        statusLabel.text = text;
+    }
+
+    void UpdateStatusLabels()
+    {
+        var mode = NetworkManager.Singleton.IsHost ? "Host" : NetworkManager.Singleton.IsServer ? "Server" : "Client";
+        // 等价于
+        // if (NetworkManager.Singleton.IsHost)
+        // {
+        //     mode = "Host";
+        // }
+        // else if (NetworkManager.Singleton.IsServer)
+        // {
+        //     mode = "Server";
+        // }
+        // else
+        // {
+        //     mode = "Client";
+        // }
+
+        string transport = "Transport: " + NetworkManager.Singleton.NetworkConfig.NetworkTransport.GetType().Name; // 获取网络传输层的类型名
+        string modeText = "Mode: " + mode;
+        SetStatusText($"{transport}\n{modeText}");
+    }
+
+    void SubmitNewPosition()
+    {
+        if (NetworkManager.Singleton.IsServer && !NetworkManager.Singleton.IsClient)
+        {
+            foreach (ulong uid in NetworkManager.Singleton.ConnectedClientsIds)
+            {
+                var playerObject = NetworkManager.Singleton.SpawnManager.GetPlayerNetworkObject(uid);
+                var player = playerObject.GetComponent<HelloWorldPlayer>();
+                player.Move();
+            }
+        }
+        else if (NetworkManager.Singleton.IsClient)
+        {
+            var playerObject = NetworkManager.Singleton.SpawnManager.GetLocalPlayerObject();
+            var player = playerObject.GetComponent<HelloWorldPlayer>();
+            player.Move();
+        }
     }
 }
